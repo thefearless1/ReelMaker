@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel Maker — Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 24px 16px 40px;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #FFD700;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+  }
+
+  /* Phone shell */
+  .phone {
+    position: relative;
+    width: 320px;
+    border-radius: 40px;
+    background: #111;
+    padding: 14px;
+    box-shadow:
+      0 0 0 2px #2a2a3a,
+      0 20px 60px rgba(0,0,0,0.7),
+      inset 0 0 0 1px #333;
+  }
+
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 20px; left: 50%;
+    transform: translateX(-50%);
+    width: 80px; height: 6px;
+    background: #222;
+    border-radius: 3px;
+    z-index: 10;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 28px;
+    background: #000;
+  }
+
+  /* Controls */
+  .controls {
+    margin-top: 24px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .time {
+    font-size: 13px;
+    color: #888;
+    min-width: 80px;
+    text-align: right;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: #2a2a3a;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #FFD700;
+    cursor: pointer;
+  }
+
+  .btn-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  button {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: #252540; }
+  button.primary {
+    background: #FFD700;
+    color: #000;
+    border-color: #FFD700;
+    font-weight: 700;
+  }
+  button.primary:hover { background: #ffc400; }
+
+  .scene-info {
+    font-size: 12px;
+    color: #555;
+    text-align: center;
+  }
+
+  #status {
+    font-size: 12px;
+    color: #e05050;
+    text-align: center;
+    min-height: 18px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Reel Maker Preview</h1>
+
+<div class="phone">
+  <canvas id="canvas" width="1080" height="1920"></canvas>
+</div>
+
+<div class="controls">
+  <div id="status"></div>
+
+  <div class="row">
+    <span class="time" id="timeLabel">0.0s / 0.0s</span>
+    <input type="range" id="scrubber" min="0" max="100" step="0.1" value="0">
+  </div>
+
+  <div class="btn-row">
+    <button id="btnRestart">&#9664;&#9664;</button>
+    <button class="primary" id="btnPlay">&#9654; Play</button>
+    <button id="btnReload">&#8635; Reload</button>
+  </div>
+
+  <div class="scene-info" id="sceneInfo">Loading…</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Easings (mirrors src/engine/easings.js)
+// ═══════════════════════════════════════════════════════════════════════════
+const easings = {
+  linear:       t => t,
+  easeInQuad:   t => t * t,
+  easeOutQuad:  t => t * (2 - t),
+  easeInOutQuad: t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t,
+  easeInCubic:  t => t * t * t,
+  easeOutCubic: t => (--t)*t*t+1,
+  easeInOutCubic: t => t < 0.5 ? 4*t*t*t : (t-1)*(2*t-2)*(2*t-2)+1,
+  easeOutBack: t => {
+    const c1=1.70158, c3=c1+1;
+    return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);
+  },
+  easeOutElastic: t => {
+    const c4=(2*Math.PI)/3;
+    return t===0?0:t===1?1:Math.pow(2,-10*t)*Math.sin((t*10-0.75)*c4)+1;
+  },
+  easeOutBounce: t => {
+    const n1=7.5625,d1=2.75;
+    if(t<1/d1) return n1*t*t;
+    if(t<2/d1) return n1*(t-=1.5/d1)*t+0.75;
+    if(t<2.5/d1) return n1*(t-=2.25/d1)*t+0.9375;
+    return n1*(t-=2.625/d1)*t+0.984375;
+  },
+};
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Animator (mirrors src/engine/Animator.js)
+// ═══════════════════════════════════════════════════════════════════════════
+function getProgress(t, start, dur) {
+  if(dur<=0) return 1;
+  if(t<start) return 0;
+  if(t>=start+dur) return 1;
+  return (t-start)/dur;
+}
+
+function applyEasing(t, name='easeOutCubic') {
+  const fn = easings[name];
+  return fn ? fn(clamp(t,0,1)) : clamp(t,0,1);
+}
+
+function getElementState(el, localTime) {
+  const state = {
+    opacity:    el.opacity !== undefined ? el.opacity : 1,
+    translateX: 0,
+    translateY: 0,
+    scale:      1,
+    rotation:   el.rotation || 0,
+  };
+  if(!el.animations || !el.animations.length) return state;
+
+  for(const anim of el.animations) {
+    const raw = getProgress(localTime, anim.startTime||0, anim.duration!==undefined?anim.duration:0.5);
+    const p   = applyEasing(raw, anim.easing||'easeOutCubic');
+
+    switch(anim.type) {
+      case 'fadeIn':       state.opacity    *= p;                                         break;
+      case 'fadeOut':      state.opacity    *= (1-p);                                     break;
+      case 'slideInUp':    state.translateY += lerp(anim.distance||80, 0, p);             break;
+      case 'slideInDown':  state.translateY += lerp(-(anim.distance||80), 0, p);          break;
+      case 'slideInLeft':  state.translateX += lerp(-(anim.distance||80), 0, p);          break;
+      case 'slideInRight': state.translateX += lerp(anim.distance||80, 0, p);             break;
+      case 'slideOutUp':   state.translateY += lerp(0, -(anim.distance||80), p);          break;
+      case 'slideOutDown': state.translateY += lerp(0, anim.distance||80, p);             break;
+      case 'scaleIn':      state.scale      *= lerp(anim.from!==undefined?anim.from:0,1,p); break;
+      case 'scaleOut':     state.scale      *= lerp(1, anim.to!==undefined?anim.to:0, p);  break;
+      case 'expandWidth':  state.widthProgress = p;                                       break;
+    }
+  }
+  return state;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Browser Renderer
+// ═══════════════════════════════════════════════════════════════════════════
+class BrowserRenderer {
+  constructor(canvas, options={}) {
+    this.canvas = canvas;
+    this.ctx    = canvas.getContext('2d');
+    this.W      = options.width  || 1080;
+    this.H      = options.height || 1920;
+    this.fps    = options.fps    || 30;
+    this._imgs  = new Map();
+    canvas.width  = this.W;
+    canvas.height = this.H;
+  }
+
+  _loadImage(src) {
+    if(this._imgs.has(src)) return Promise.resolve(this._imgs.get(src));
+    return new Promise((res,rej) => {
+      const img = new Image();
+      img.onload  = () => { this._imgs.set(src,img); res(img); };
+      img.onerror = rej;
+      img.src = src;
+    });
+  }
+
+  _resolveScene(scenes, time) {
+    let off = 0;
+    for(const s of scenes) {
+      if(time < off + s.duration) return { scene:s, localTime: time-off };
+      off += s.duration;
+    }
+    const last = scenes[scenes.length-1];
+    return { scene:last, localTime:last.duration };
+  }
+
+  async render(scenes, time) {
+    const { scene, localTime } = this._resolveScene(scenes, time);
+    await this._drawBg(scene.background);
+    for(const el of scene.elements||[]) await this._drawEl(el, localTime);
+  }
+
+  // Background ──────────────────────────────────────────────────────────────
+
+  async _drawBg(bg) {
+    const ctx = this.ctx;
+    ctx.save();
+    if(!bg) { ctx.fillStyle='#000'; ctx.fillRect(0,0,this.W,this.H); ctx.restore(); return; }
+
+    if(bg.type==='color') {
+      ctx.fillStyle=bg.color; ctx.fillRect(0,0,this.W,this.H);
+    } else if(bg.type==='gradient') {
+      let x0=0,y0=0,x1=0,y1=this.H;
+      if(bg.direction==='horizontal'){x1=this.W;y1=0;}
+      else if(Array.isArray(bg.direction)){
+        [x0,y0,x1,y1]=bg.direction.map((v,i)=>v*(i%2===0?this.W:this.H));
+      }
+      const g=ctx.createLinearGradient(x0,y0,x1,y1);
+      for(const s of bg.stops) g.addColorStop(s.position,s.color);
+      ctx.fillStyle=g; ctx.fillRect(0,0,this.W,this.H);
+    } else if(bg.type==='radialGradient') {
+      const cx=(bg.cx||0.5)*this.W, cy=(bg.cy||0.5)*this.H;
+      const r0=(bg.r0||0)*this.H,   r1=(bg.r1||1)*this.H;
+      const g=ctx.createRadialGradient(cx,cy,r0,cx,cy,r1);
+      for(const s of bg.stops) g.addColorStop(s.position,s.color);
+      ctx.fillStyle=g; ctx.fillRect(0,0,this.W,this.H);
+    } else if(bg.type==='image') {
+      const img=await this._loadImage(bg.src);
+      ctx.drawImage(img,0,0,this.W,this.H);
+    }
+    ctx.restore();
+  }
+
+  // Elements ────────────────────────────────────────────────────────────────
+
+  async _drawEl(el, localTime) {
+    const state = getElementState(el, localTime);
+    if(state.opacity<=0.001) return;
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = clamp(state.opacity,0,1);
+
+    const x = el.x + state.translateX;
+    const y = el.y + state.translateY;
+
+    if(state.scale!==1 || state.rotation!==0) {
+      ctx.translate(x,y);
+      if(state.rotation) ctx.rotate(state.rotation*Math.PI/180);
+      if(state.scale!==1) ctx.scale(state.scale,state.scale);
+      ctx.translate(-x,-y);
+    }
+
+    if(el.type==='text')   this._drawText(el,x,y);
+    else if(el.type==='rect')   this._drawRect(el,x,y,state);
+    else if(el.type==='circle') this._drawCircle(el,x,y);
+    else if(el.type==='image')  await this._drawImage(el,x,y);
+    else if(el.type==='line')   this._drawLine(el,x,y,state);
+
+    ctx.restore();
+  }
+
+  _wrapText(ctx,text,maxWidth){
+    if(!maxWidth) return [text];
+    const words=text.split(' '), lines=[];
+    let cur='';
+    for(const w of words){
+      const t=cur?`${cur} ${w}`:w;
+      if(ctx.measureText(t).width>maxWidth&&cur){lines.push(cur);cur=w;}
+      else cur=t;
+    }
+    if(cur) lines.push(cur);
+    return lines;
+  }
+
+  _drawText(el,x,y){
+    const ctx=this.ctx;
+    const fw=el.fontWeight||'normal', fs=el.fontSize||48, ff=el.fontFamily||'sans-serif';
+    ctx.font=`${fw} ${fs}px ${ff}`;
+    ctx.fillStyle=el.color||'#fff';
+    ctx.textAlign=el.align||'center';
+    ctx.textBaseline=el.baseline||'middle';
+    if(el.shadow){
+      ctx.shadowBlur=el.shadow.blur||0;
+      ctx.shadowColor=el.shadow.color||'rgba(0,0,0,0.5)';
+      ctx.shadowOffsetX=el.shadow.offsetX||0;
+      ctx.shadowOffsetY=el.shadow.offsetY||0;
+    }
+    if(el.stroke){
+      ctx.strokeStyle=el.stroke.color||'#000';
+      ctx.lineWidth=el.stroke.width||2;
+      ctx.lineJoin='round';
+    }
+    const lh=fs*(el.lineHeight||1.3);
+    const lines=this._wrapText(ctx,el.text||'',el.maxWidth);
+    const total=lines.length*lh;
+    const startY=el.verticalAlign==='middle'?y-total/2+lh/2:y;
+    lines.forEach((line,i)=>{
+      const ly=startY+i*lh;
+      if(el.stroke) ctx.strokeText(line,x,ly);
+      ctx.fillText(line,x,ly);
+    });
+  }
+
+  _drawRect(el,x,y,state){
+    const ctx=this.ctx;
+    const fullW=el.width||100, h=el.height||10, r=el.cornerRadius||0;
+    const w=state.widthProgress!==undefined?fullW*state.widthProgress:fullW;
+    const dx=el.anchor==='center'?x-w/2:x;
+    const dy=el.anchor==='center'?y-h/2:y;
+    if(el.gradient){
+      const g=ctx.createLinearGradient(dx,0,dx+w,0);
+      for(const s of el.gradient) g.addColorStop(s.position,s.color);
+      ctx.fillStyle=g;
+    } else ctx.fillStyle=el.color||'#fff';
+    if(r>0){
+      ctx.beginPath();
+      ctx.moveTo(dx+r,dy);
+      ctx.lineTo(dx+w-r,dy);
+      ctx.arcTo(dx+w,dy,dx+w,dy+h,r);
+      ctx.lineTo(dx+w,dy+h-r);
+      ctx.arcTo(dx+w,dy+h,dx+w-r,dy+h,r);
+      ctx.lineTo(dx+r,dy+h);
+      ctx.arcTo(dx,dy+h,dx,dy+h-r,r);
+      ctx.lineTo(dx,dy+r);
+      ctx.arcTo(dx,dy,dx+r,dy,r);
+      ctx.closePath();
+      ctx.fill();
+    } else ctx.fillRect(dx,dy,w,h);
+  }
+
+  _drawCircle(el,x,y){
+    const ctx=this.ctx;
+    ctx.beginPath();
+    ctx.arc(x,y,el.radius||20,0,Math.PI*2);
+    ctx.fillStyle=el.color||'#fff';
+    ctx.fill();
+    if(el.stroke){
+      ctx.strokeStyle=el.stroke.color||'#000';
+      ctx.lineWidth=el.stroke.width||2;
+      ctx.stroke();
+    }
+  }
+
+  async _drawImage(el,x,y){
+    const img=await this._loadImage(el.src);
+    const w=el.width||img.width, h=el.height||img.height;
+    const dx=el.anchor==='center'?x-w/2:x;
+    const dy=el.anchor==='center'?y-h/2:y;
+    this.ctx.drawImage(img,dx,dy,w,h);
+  }
+
+  _drawLine(el,x,y,state){
+    const ctx=this.ctx;
+    const p=state.widthProgress!==undefined?state.widthProgress:1;
+    const x2=el.x2!==undefined?el.x2:x+(el.length||100);
+    const y2=el.y2!==undefined?el.y2:y;
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+    ctx.lineTo(x+(x2-x)*p, y+(y2-y)*p);
+    ctx.strokeStyle=el.color||'#fff';
+    ctx.lineWidth=el.width||2;
+    if(el.lineCap) ctx.lineCap=el.lineCap;
+    ctx.stroke();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Player
+// ═══════════════════════════════════════════════════════════════════════════
+let renderer, scenes, totalDuration, fps;
+let currentTime = 0;
+let playing     = false;
+let lastRAF     = null;
+let lastTS      = null;
+
+const canvas    = document.getElementById('canvas');
+const scrubber  = document.getElementById('scrubber');
+const timeLabel = document.getElementById('timeLabel');
+const sceneInfo = document.getElementById('sceneInfo');
+const status    = document.getElementById('status');
+const btnPlay   = document.getElementById('btnPlay');
+
+function fmt(s){ return s.toFixed(1)+'s'; }
+
+function getSceneAt(t) {
+  if(!scenes) return null;
+  let off=0;
+  for(let i=0;i<scenes.length;i++){
+    if(t < off+scenes[i].duration) return { index:i, name:scenes[i].name||`Scene ${i+1}` };
+    off+=scenes[i].duration;
+  }
+  return { index:scenes.length-1, name:`Scene ${scenes.length}` };
+}
+
+async function drawFrame(t) {
+  if(!renderer || !scenes) return;
+  await renderer.render(scenes, clamp(t,0,totalDuration));
+}
+
+async function tick(ts) {
+  if(!playing) return;
+  if(lastTS!==null) {
+    const dt = (ts - lastTS) / 1000;
+    currentTime = Math.min(currentTime + dt, totalDuration);
+  }
+  lastTS = ts;
+
+  scrubber.value = (currentTime / totalDuration) * 100;
+  timeLabel.textContent = `${fmt(currentTime)} / ${fmt(totalDuration)}`;
+  const si = getSceneAt(currentTime);
+  if(si) sceneInfo.textContent = si.name;
+
+  await drawFrame(currentTime);
+
+  if(currentTime >= totalDuration) {
+    playing = false;
+    lastTS  = null;
+    btnPlay.textContent = '▶ Play';
+    return;
+  }
+
+  lastRAF = requestAnimationFrame(tick);
+}
+
+function togglePlay() {
+  playing = !playing;
+  btnPlay.textContent = playing ? '⏸ Pause' : '▶ Play';
+  if(playing) {
+    if(currentTime >= totalDuration) currentTime = 0;
+    lastTS  = null;
+    lastRAF = requestAnimationFrame(tick);
+  } else {
+    if(lastRAF) cancelAnimationFrame(lastRAF);
+    lastTS = null;
+  }
+}
+
+scrubber.addEventListener('input', async () => {
+  const wasPlaying = playing;
+  if(playing){ playing=false; if(lastRAF) cancelAnimationFrame(lastRAF); }
+  currentTime = (scrubber.value/100) * totalDuration;
+  timeLabel.textContent = `${fmt(currentTime)} / ${fmt(totalDuration)}`;
+  await drawFrame(currentTime);
+  if(wasPlaying){ playing=true; lastTS=null; lastRAF=requestAnimationFrame(tick); }
+});
+
+document.getElementById('btnPlay').addEventListener('click', togglePlay);
+document.getElementById('btnRestart').addEventListener('click', async () => {
+  playing=false; if(lastRAF) cancelAnimationFrame(lastRAF);
+  currentTime=0; scrubber.value=0;
+  btnPlay.textContent='▶ Play';
+  await drawFrame(0);
+});
+document.getElementById('btnReload').addEventListener('click', loadScenes);
+
+async function loadScenes() {
+  status.textContent = 'Loading…';
+  try {
+    const res  = await fetch('/api/scenes');
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+
+    scenes        = data.scenes;
+    totalDuration = data.totalDuration;
+    fps           = data.rendererOptions?.fps || 30;
+
+    renderer = new BrowserRenderer(canvas, data.rendererOptions || {});
+
+    // Name the scenes for the info label
+    scenes[0].name = 'Intro';
+    scenes[scenes.length-1].name = 'Outro';
+    for(let i=1;i<scenes.length-1;i++) scenes[i].name = `Item ${i}`;
+
+    scrubber.max = 100;
+    scrubber.value = 0;
+    currentTime = 0;
+    timeLabel.textContent = `0.0s / ${fmt(totalDuration)}`;
+    sceneInfo.textContent  = 'Ready — press Play';
+    status.textContent     = '';
+
+    await drawFrame(0);
+  } catch(err) {
+    status.textContent = 'Error: ' + err.message;
+    console.error(err);
+  }
+}
+
+loadScenes();
+</script>
+</body>
+</html>
