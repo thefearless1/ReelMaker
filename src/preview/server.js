@@ -25,8 +25,11 @@ const PUBLIC_DIR   = path.join(__dirname, 'public');
 function loadConfig() {
   const configPath = path.join(PROJECT_ROOT, 'reel.config.js');
   if (fs.existsSync(configPath)) {
-    // Clear require cache so edits are picked up on each /api/scenes request
-    delete require.cache[require.resolve(configPath)];
+    // Clear all local module caches (not node_modules) so template edits are
+    // picked up without restarting the server.
+    Object.keys(require.cache).forEach(key => {
+      if (!key.includes('node_modules')) delete require.cache[key];
+    });
     return require(configPath);
   }
 

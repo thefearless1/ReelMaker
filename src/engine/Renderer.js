@@ -108,12 +108,27 @@ class Renderer {
 
       case 'image': {
         const img = await this._loadImage(bg.src);
-        ctx.drawImage(img, 0, 0, this.width, this.height);
+        this._drawImageCover(ctx, img, 0, 0, this.width, this.height);
         break;
       }
     }
 
     ctx.restore();
+  }
+
+  // Draw image with cover-fit: centre-crop to fill the destination rect.
+  _drawImageCover(ctx, img, dx, dy, dw, dh) {
+    const imgAspect    = img.width / img.height;
+    const destAspect   = dw / dh;
+    let sx, sy, sw, sh;
+    if (imgAspect > destAspect) {
+      sh = img.height; sw = sh * destAspect;
+      sy = 0;          sx = (img.width - sw) / 2;
+    } else {
+      sw = img.width;  sh = sw / destAspect;
+      sx = 0;          sy = (img.height - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
   }
 
   _buildLinearGradient(ctx, bg) {
