@@ -286,21 +286,28 @@ class Renderer {
   // Image ────────────────────────────────────────────────────────────────────
 
   async _drawImage(ctx, el, x, y) {
-    const img  = await this._loadImage(el.src);
-    const w    = el.width  || img.width;
-    const h    = el.height || img.height;
-    const drawX = el.anchor === 'center' ? x - w / 2 : x;
-    const drawY = el.anchor === 'center' ? y - h / 2 : y;
+    const img = await this._loadImage(el.src);
 
-    if (el.cornerRadius) {
-      ctx.save();
-      this._clipRoundRect(ctx, drawX, drawY, w, h, el.cornerRadius);
-      ctx.clip();
+    if (el.filter) ctx.filter = el.filter;
+
+    if (el.cover) {
+      this._drawImageCover(ctx, img, 0, 0, this.width, this.height);
+    } else {
+      const w     = el.width  || img.width;
+      const h     = el.height || img.height;
+      const drawX = el.anchor === 'center' ? x - w / 2 : x;
+      const drawY = el.anchor === 'center' ? y - h / 2 : y;
+
+      if (el.cornerRadius) {
+        ctx.save();
+        this._clipRoundRect(ctx, drawX, drawY, w, h, el.cornerRadius);
+        ctx.clip();
+      }
+      ctx.drawImage(img, drawX, drawY, w, h);
+      if (el.cornerRadius) ctx.restore();
     }
 
-    ctx.drawImage(img, drawX, drawY, w, h);
-
-    if (el.cornerRadius) ctx.restore();
+    if (el.filter) ctx.filter = 'none';
   }
 
   _clipRoundRect(ctx, x, y, w, h, r) {

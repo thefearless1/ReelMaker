@@ -1,69 +1,110 @@
-const HowToTemplate = require('./src/templates/HowToTemplate');
+/**
+ * Top 5 Mobile Video Editors 2026
+ * Content sourced from pickedfive.com/tops/mobile-video-editors.html
+ */
 
-const template = new HowToTemplate({
-  hookDuration:    3,
-  problemDuration: 3.5,
-  stepDuration:    4.5,
-  resultDuration:  4,
-  outroDuration:   3,
+const AppReviewTemplate = require('./src/templates/AppReviewTemplate');
 
-  hook: {
-    badge:    'AI AGENT',
-    title:    'Automate Document Intelligence',
-    subtitle: 'Extract data from 600-page docs & match invoices against contracts — in seconds',
-    brand:    '@YourChannel',
-  },
+const template = new AppReviewTemplate({
+  title:         'Mobile Video Editors',
+  subtitle:      'Ranked & Reviewed 2026',
+  brand:         '@pickedfive',
+  itemDuration:  7,
+  introDuration: 3.5,
+  outroDuration: 4,
 
-  problems: [
+  items: [
     {
-      label:       'THE CHALLENGE',
-      title:       '600-Page Contracts, Zero Room for Error',
-      description: 'Manual data extraction takes hours per document and introduces costly mistakes at scale',
-      stat:        '⏱  3–5 hours per document, manually',
+      rank: 1,
+      name: 'Filmora',
+      screenshot: '/screenshots/filmora.jpeg',
+      award: 'Best Overall',
+      quote: 'AI auto-captions, background removal, and smart clip generation',
+      features: [
+        'Over 2.9M creative assets via Filmstock',
+        '4K export with auto-reframe for social formats',
+        'Desktop & mobile sync — edit anywhere',
+      ],
+      price: 'Free (watermarked)  ·  from $59.99 / year',
+      colors: {
+        primary:   '#C41F7A',
+        secondary: '#FF6B35',
+        accent:    '#FFD700',
+      },
     },
     {
-      label:       'THE CHALLENGE',
-      title:       '1 Invoice vs 10 Different Contracts',
-      description: 'Payment terms, pricing clauses, and SLAs vary across every agreement — impossible to cross-check by hand',
-      stat:        '🔍  10 contracts × hundreds of clauses',
+      rank: 2,
+      name: 'InVideo AI',
+      screenshot: '/screenshots/invideoAi.jpeg',
+      award: 'Best AI Generation',
+      quote: 'Text-to-video with script, voiceover, and footage handled automatically',
+      features: [
+        'Bundles OpenAI Sora 2 & Google VEO 3.1 models',
+        'Voice cloning from a 30-second sample',
+        '16M+ premium stock media assets included',
+      ],
+      price: 'Free  ·  Plus from $25 / month',
+      colors: {
+        primary:   '#1a2a8e',
+        secondary: '#0a6fff',
+        accent:    '#00CFFF',
+      },
+    },
+    {
+      rank: 3,
+      name: 'FlexClip',
+      screenshot: '/screenshots/flexclip.jpeg',
+      award: 'Best Browser-Based',
+      quote: 'Browser-based with no download required',
+      features: [
+        'AI text-to-video & image-to-video generation',
+        '6,000+ templates and 4M+ stock assets',
+        'Auto subtitles, background removal & TTS',
+      ],
+      price: 'Free  ·  Plus from $11.99 / month',
+      colors: {
+        primary:   '#027CA8',
+        secondary: '#00C9A7',
+        accent:    '#7FFFCF',
+      },
+    },
+    {
+      rank: 4,
+      name: 'Movavi',
+      screenshot: '/screenshots/movavi.jpeg',
+      award: 'Best for Beginners',
+      quote: 'Clean drag-and-drop interface with no intimidating learning curve',
+      features: [
+        'AI background removal — no green screen needed',
+        'One-time lifetime license option available',
+        '180+ format support with preset exports',
+      ],
+      price: 'From $69.95 one-time  ·  $14.95 / month',
+      colors: {
+        primary:   '#1B4F9B',
+        secondary: '#2C87D1',
+        accent:    '#62B8FF',
+      },
+    },
+    {
+      rank: 5,
+      name: 'Descript',
+      screenshot: '/screenshots/descript.jpeg',
+      award: 'Most Unique',
+      quote: 'Edit video by deleting words from the transcript',
+      features: [
+        'One-click filler-word removal & AI voice cloning',
+        'Integrated transcription & Studio Sound audio',
+        'Screen recording built right in',
+      ],
+      price: 'Free  ·  Hobbyist from $24 / month',
+      colors: {
+        primary:   '#3B0764',
+        secondary: '#7B2D8B',
+        accent:    '#D946EF',
+      },
     },
   ],
-
-  steps: [
-    {
-      number:      1,
-      title:       'Connect Your Document Sources',
-      description: 'Ingest PDFs, scanned documents, and emails directly into TotalAgility\'s intelligent capture pipeline',
-      image:       'https://www.flexmind.co/wp-content/uploads/2020/12/Kofax-agility.png',
-      tip:         'Supports PDF, TIFF, Word, email attachments and more',
-    },
-    {
-      number:      2,
-      title:       'Configure AI Extraction Rules',
-      description: 'Use pre-built AI models to identify fields, tables, amounts, and key contract clauses automatically',
-      image:       'https://blogs.genustechnologies.com/hs-fs/hubfs/Blog%20Images/02_TA8%20Cloud%20Docs.webp?width=685&height=498&name=02_TA8%20Cloud%20Docs.webp',
-      tip:         'No training data needed — models work out of the box',
-    },
-    {
-      number:      3,
-      title:       'Build the Invoice Matching Agent',
-      description: 'Define matching rules and tolerance thresholds — the AI agent cross-checks each invoice against all relevant contracts',
-      image:       'https://cdn.prod.website-files.com/6257145dcba369226267687e/62a1c24c9a8eedd742ca8e6c_kofax5.jpg',
-      tip:         'Flag discrepancies automatically for human review',
-    },
-  ],
-
-  results: [
-    { value: '< 60s',  label: 'to process a 600-page document' },
-    { value: '99.8%',  label: 'extraction accuracy' },
-    { value: '10×',    label: 'faster than manual review' },
-  ],
-
-  outro: {
-    title: 'START BUILDING TODAY',
-    cta:   'Like & Subscribe for more AI tutorials!',
-    brand: '@YourChannel',
-  },
 });
 
 module.exports = {

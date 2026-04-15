@@ -5,7 +5,8 @@
       "name": "reel-preview",
       "runtimeExecutable": "node",
       "runtimeArgs": ["src/preview/server.js"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

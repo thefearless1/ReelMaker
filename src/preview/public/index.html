@@ -433,10 +433,16 @@ class BrowserRenderer {
 
   async _drawImage(el,x,y){
     const img=await this._loadImage(el.src);
-    const w=el.width||img.width, h=el.height||img.height;
-    const dx=el.anchor==='center'?x-w/2:x;
-    const dy=el.anchor==='center'?y-h/2:y;
-    this.ctx.drawImage(img,dx,dy,w,h);
+    if(el.filter) this.ctx.filter=el.filter;
+    if(el.cover){
+      this._drawImageCover(img,0,0,this.W,this.H);
+    } else {
+      const w=el.width||img.width, h=el.height||img.height;
+      const dx=el.anchor==='center'?x-w/2:x;
+      const dy=el.anchor==='center'?y-h/2:y;
+      this.ctx.drawImage(img,dx,dy,w,h);
+    }
+    if(el.filter) this.ctx.filter='none';
   }
 
   _drawLine(el,x,y,state){
