@@ -1,5 +1,13 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const path = require('path');
+const fs   = require('fs');
 const Animator = require('./Animator');
+
+// Browser-style paths like "/screenshots/foo.jpeg" are served over HTTP by
+// the preview server but aren't valid filesystem paths. Resolve them to the
+// canonical on-disk location under src/preview/public so the Node renderer
+// can load them when generating video.
+const PREVIEW_PUBLIC = path.resolve(__dirname, '..', 'preview', 'public');
 
 /**
  * Node.js canvas renderer. Draws a single frame at a given timestamp.
@@ -19,7 +27,16 @@ class Renderer {
 
   async _loadImage(src) {
     if (this._imageCache.has(src)) return this._imageCache.get(src);
-    const img = await loadImage(src);
+
+    // Map HTTP-style "/foo/bar.jpeg" paths to their on-disk equivalent under
+    // the preview public directory. Skip if it's already a real absolute path.
+    let resolved = src;
+    if (typeof src === 'string' && src.startsWith('/') && !fs.existsSync(src)) {
+      const candidate = path.join(PREVIEW_PUBLIC, src);
+      if (fs.existsSync(candidate)) resolved = candidate;
+    }
+
+    const img = await loadImage(resolved);
     this._imageCache.set(src, img);
     return img;
   }
@@ -167,7 +184,7 @@ class Renderer {
       case 'text':   await this._drawText(ctx, element, x, y); break;
       case 'rect':        this._drawRect(ctx, element, x, y, state); break;
       case 'circle':      this._drawCircle(ctx, element, x, y); break;
-      case 'image':  await this._drawImage(ctx, element, x, y); break;
+      case 'image':  await this._drawImage(ctx, element, x, y, state); break;
       case 'line':        this._drawLine(ctx, element, x, y, state); break;
     }
 
@@ -285,10 +302,17 @@ class Renderer {
 
   // Image ────────────────────────────────────────────────────────────────────
 
-  async _drawImage(ctx, el, x, y) {
+  async _drawImage(ctx, el, x, y, state) {
     const img = await this._loadImage(el.src);
 
-    if (el.filter) ctx.filter = el.filter;
+    // Combine static el.filter with any animated blur from state.blurPx
+    const filterParts = [];
+    if (el.filter) filterParts.push(el.filter);
+    if (state && state.blurPx && state.blurPx > 0.05) {
+      filterParts.push(`blur(${state.blurPx.toFixed(2)}px)`);
+    }
+    const filterStr = filterParts.join(' ');
+    if (filterStr) ctx.filter = filterStr;
 
     if (el.cover) {
       this._drawImageCover(ctx, img, 0, 0, this.width, this.height);
@@ -307,7 +331,7 @@ class Renderer {
       if (el.cornerRadius) ctx.restore();
     }
 
-    if (el.filter) ctx.filter = 'none';
+    if (filterStr) ctx.filter = 'none';
   }
 
   _clipRoundRect(ctx, x, y, w, h, r) {

@@ -288,8 +288,16 @@ class AppReviewTemplate extends BaseTemplate {
     const { colors } = item;
     const src = item.screenshot || null;
 
-    // Text appears after the 2s screenshot reveal + 0.3s crossfade overlap
-    const T = 2.3;
+    // ── Timing choreography (2-second entry) ──
+    //
+    //   0.00 – 0.35   image fades in (heavily blurred, "loading")
+    //   0.00 – 1.00   blur animates 24 → 0 (sharpens as the image "resolves")
+    //   1.00 – 1.40   clean hold, subtle ken-burns zoom continues
+    //   1.40 – 2.00   blur re-animates 0 → 16 (soft focus behind content)
+    //   1.40 – 2.00   scrim slides UP from below the fold, fading in
+    //   2.00 +        text cascade (rank → name → award → quote → bullets → price)
+    //   duration-0.30 short dip-to-black so the next item eases in cleanly
+    const T = 2.00;
 
     // Vertical layout constants
     const rankY  = this.H * 0.435;
@@ -305,37 +313,67 @@ class AppReviewTemplate extends BaseTemplate {
     const hasFeat2 = item.features.length > 1;
     const hasFeat3 = item.features.length > 2;
 
-    // Screenshot reveal elements (clean → blurred crossfade starting at t=1.5)
+    // Single image element with animated blur. Positioned at screen centre
+    // so the ken-burns scale pivots around the middle of the frame instead
+    // of the top-left corner.
     const screenshotEls = src ? [
-      // Phase 1: clean screenshot (visible from t=0, fades OUT at t=1.5)
       {
-        type: 'image', src, x: 0, y: 0, cover: true,
+        type: 'image', src,
+        x: this.W / 2, y: this.H / 2,
+        cover: true,
         animations: [
-          { type: 'fadeIn',  startTime: 0,   duration: 0.4 },
-          { type: 'fadeOut', startTime: 1.5, duration: 0.7, easing: 'easeInOutQuad' },
+          // Gentle fade-in while heavily blurred — "image loading" feel
+          { type: 'fadeIn',   startTime: 0,    duration: 0.35, easing: 'easeOutCubic' },
+          // Sharpen: blur 24 → 0 over 1.0s. Composes additively with the
+          // re-blur below (which is dormant until t=1.40).
+          { type: 'blur',     startTime: 0,    duration: 1.00, from: 24, to: 0,  easing: 'easeOutCubic' },
+          // Re-blur once the content scrim slides up
+          { type: 'blur',     startTime: 1.40, duration: 0.60, from: 0,  to: 16, easing: 'easeInOutCubic' },
+          // Continuous slow ken-burns zoom over the whole scene
+          { type: 'scaleOut', startTime: 0,    duration,       to: 1.07, easing: 'linear' },
         ],
       },
-      // Phase 2: blurred screenshot (invisible at t=0, fades IN at t=1.5)
-      {
-        type: 'image', src, x: 0, y: 0, cover: true,
-        filter: 'blur(22px) brightness(0.55)',
-        animations: [
-          { type: 'fadeIn', startTime: 1.5, duration: 0.7, easing: 'easeInOutQuad' },
-        ],
-      },
-    ] : [
-      // Fallback: brand gradient rendered as elements (background handles it)
-    ];
+    ] : [];
 
-    // Dark bottom scrim — fades in with the blur so text is always readable
+    // Dark scrim — slides UP from below the fold while fading in, so the
+    // semi-transparent layer visibly enters the frame instead of just popping.
     const scrimEls = [
       {
         type: 'rect', x: 0, y: this.H * 0.30,
         width: this.W, height: this.H * 0.70,
-        color: 'rgba(0,0,0,0.80)',
-        animations: [{ type: 'fadeIn', startTime: 1.5, duration: 0.7, easing: 'easeInOutQuad' }],
+        color: 'rgba(6,6,14,0.88)',
+        animations: [
+          { type: 'fadeIn',    startTime: 1.40, duration: 0.60, easing: 'easeOutCubic' },
+          { type: 'slideInUp', startTime: 1.40, duration: 0.60, distance: 420, easing: 'easeOutCubic' },
+        ],
+      },
+      // Thin brand-accent stripe that rides on the top edge of the scrim —
+      // gives the slide-up a clear leading edge instead of a fuzzy fade.
+      {
+        type: 'rect', x: 0, y: this.H * 0.30,
+        width: this.W, height: 3,
+        gradient: [
+          { position: 0,   color: 'rgba(255,255,255,0)' },
+          { position: 0.5, color: `${colors.accent}CC` },
+          { position: 1,   color: 'rgba(255,255,255,0)' },
+        ],
+        animations: [
+          { type: 'fadeIn',    startTime: 1.50, duration: 0.50, easing: 'easeOutCubic' },
+          { type: 'slideInUp', startTime: 1.40, duration: 0.60, distance: 420, easing: 'easeOutCubic' },
+        ],
       },
     ];
+
+    // Dip-to-black at the tail of every item scene so the next one
+    // resolves out of darkness rather than hard-cutting in.
+    const outroVeilEl = {
+      type: 'rect', x: 0, y: 0,
+      width: this.W, height: this.H,
+      color: '#000000',
+      animations: [
+        { type: 'fadeIn', startTime: duration - 0.30, duration: 0.30, easing: 'easeInQuad' },
+      ],
+    };
 
     return {
       name: item.name,
@@ -505,6 +543,9 @@ class AppReviewTemplate extends BaseTemplate {
 
         // ── Progress dots ──
         ...this._progressDots(activeIndex, total),
+
+        // ── Transition veil (dip-to-black at scene tail) ──
+        outroVeilEl,
       ],
     };
   }

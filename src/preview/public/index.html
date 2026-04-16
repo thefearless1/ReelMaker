@@ -235,6 +235,12 @@ function getElementState(el, localTime) {
       case 'scaleIn':      state.scale      *= lerp(anim.from!==undefined?anim.from:0,1,p); break;
       case 'scaleOut':     state.scale      *= lerp(1, anim.to!==undefined?anim.to:0, p);  break;
       case 'expandWidth':  state.widthProgress = p;                                       break;
+      case 'blur': {
+        const from = anim.from!==undefined?anim.from:0;
+        const to   = anim.to  !==undefined?anim.to  :0;
+        state.blurPx = (state.blurPx||0) + lerp(from, to, p);
+        break;
+      }
     }
   }
   return state;
@@ -335,7 +341,7 @@ class BrowserRenderer {
     if(el.type==='text')   this._drawText(el,x,y);
     else if(el.type==='rect')   this._drawRect(el,x,y,state);
     else if(el.type==='circle') this._drawCircle(el,x,y);
-    else if(el.type==='image')  await this._drawImage(el,x,y);
+    else if(el.type==='image')  await this._drawImage(el,x,y,state);
     else if(el.type==='line')   this._drawLine(el,x,y,state);
 
     ctx.restore();
@@ -431,9 +437,13 @@ class BrowserRenderer {
     this.ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);
   }
 
-  async _drawImage(el,x,y){
+  async _drawImage(el,x,y,state){
     const img=await this._loadImage(el.src);
-    if(el.filter) this.ctx.filter=el.filter;
+    const parts=[];
+    if(el.filter) parts.push(el.filter);
+    if(state && state.blurPx && state.blurPx>0.05) parts.push(`blur(${state.blurPx.toFixed(2)}px)`);
+    const filterStr = parts.join(' ');
+    if(filterStr) this.ctx.filter=filterStr;
     if(el.cover){
       this._drawImageCover(img,0,0,this.W,this.H);
     } else {
@@ -442,7 +452,7 @@ class BrowserRenderer {
       const dy=el.anchor==='center'?y-h/2:y;
       this.ctx.drawImage(img,dx,dy,w,h);
     }
-    if(el.filter) this.ctx.filter='none';
+    if(filterStr) this.ctx.filter='none';
   }
 
   _drawLine(el,x,y,state){

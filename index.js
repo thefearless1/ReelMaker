@@ -58,13 +58,28 @@ function loadConfig() {
 // ── Commands ───────────────────────────────────────────────────────────────
 
 async function cmdGenerate(framesOnly = false) {
-  const config   = loadConfig();
-  const template = new TopListTemplate(config);
-  const scenes   = template.getScenes();
-  const duration = template.getTotalDuration();
-  const opts     = template.getRendererOptions();
+  const config = loadConfig();
 
-  console.log(`Template: ${config.title}`);
+  // A reel.config.js may export either:
+  //   (a) a pre-built payload { rendererOptions, scenes, totalDuration } from
+  //       any template (AppReviewTemplate, HowToTemplate, …), or
+  //   (b) a raw TopListTemplate config (the legacy path used by EXAMPLE_CONFIG).
+  let scenes, duration, opts, label;
+  if (Array.isArray(config.scenes) && config.rendererOptions) {
+    scenes   = config.scenes;
+    duration = config.totalDuration
+             ?? scenes.reduce((s, sc) => s + (sc.duration || 0), 0);
+    opts     = config.rendererOptions;
+    label    = config.title || 'reel';
+  } else {
+    const template = new TopListTemplate(config);
+    scenes   = template.getScenes();
+    duration = template.getTotalDuration();
+    opts     = template.getRendererOptions();
+    label    = config.title || 'reel';
+  }
+
+  console.log(`Template: ${label}`);
   console.log(`Duration: ${duration.toFixed(1)}s  |  Scenes: ${scenes.length}  |  Resolution: ${opts.width}×${opts.height}`);
 
   const renderer = new Renderer(opts);

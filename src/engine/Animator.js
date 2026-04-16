@@ -111,6 +111,15 @@ class Animator {
           state.widthProgress = p;
           break;
 
+        case 'blur': {
+          // Animates a CSS-style blur radius (px). Composes additively with
+          // other 'blur' animations so you can chain e.g. heavy→clear→reblur.
+          const from = anim.from !== undefined ? anim.from : 0;
+          const to   = anim.to   !== undefined ? anim.to   : 0;
+          state.blurPx = (state.blurPx || 0) + this.lerp(from, to, p);
+          break;
+        }
+
         default:
           break;
       }
